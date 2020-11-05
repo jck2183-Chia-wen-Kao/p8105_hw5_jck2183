@@ -1,0 +1,84 @@
+---
+title: "P8105 Homework5"
+output: github_document
+---
+
+```{r setup}
+library(tidyverse)
+library(patchwork)
+```
+
+## Problem 1
+- Describe the raw data. Create a city_state variable (e.g. “Baltimore, MD”) and then summarize within cities to obtain the total number of homicides and the number of unsolved homicides (those for which the disposition is “Closed without arrest” or “Open/No arrest”).
+
+```{r}
+murder <- 
+  read_csv("https://raw.githubusercontent.com/washingtonpost/data-homicides/master/homicide-data.csv") %>% 
+  janitor::clean_names()
+```
+The Washington Post homicide dataset contains information on 52179 homicides across 50 major U.S. cities from 2007 to 2017. There are 12 variables. Variables provide information on the reported date of the homicide, the victims name, age, race, gender, city, state, longitude, latitude, and whether or not the case was solved.
+
+```{r}
+murder <- murder %>% 
+  unite("city_state", c("city", "state"), sep = ", ")
+
+# unsolved cases in a city
+unsolved <- murder %>% 
+  group_by(city_state) %>% 
+  filter(disposition %in% c("Closed without arrest", 
+                            "Open/No arrest")) %>% 
+  summarize(unsolved = n()) 
+
+# sum of cases in a city
+total_cases <- murder %>% 
+  group_by(city_state) %>%
+  summarize(total = n())
+
+# join previous data sets
+all_cases <- left_join(unsolved, total_cases, by = "city_state")
+ 
+```
+
+- For the city of Baltimore, MD, use the prop.test function to estimate the proportion of homicides that are unsolved; save the output of prop.test as an R object, apply the broom::tidy to this object and pull the estimated proportion and confidence intervals from the resulting tidy dataframe.
+
+```{r}
+prop_unsolved <- function(df) {
+
+  # uses unsolved and total columns in data set
+  city_unsolved <- prop.test(df$unsolved, df$total)
+  
+  # putting estimate and bounds in a nice data set
+  broom::tidy(city_unsolved) %>% 
+    select(estimate, conf.low, conf.high)
+}
+
+all_cases %>% 
+  filter(city_state == "Baltimore, MD") %>% 
+  prop_unsolved() %>% 
+  mutate(estimate = round(estimate, 3), 
+         conf.low = round(conf.low, 3), 
+         conf.high = round(conf.high, 3)) %>% 
+  rename(Estimate = estimate, 
+         "Lower bound" = conf.low, 
+         "Upper bound" = conf.high) %>% 
+  knitr::kable()
+```
+
+- Now run prop.test for each of the cities in your dataset, and extract both the proportion of unsolved homicides and the confidence interval for each. Do this within a “tidy” pipeline, making use of purrr::map, purrr::map2, list columns and unnest as necessary to create a tidy dataframe with estimated proportions and CIs for each city.
+
+```{r}
+city_nest <- nest(all_cases, unsolved:total)
+
+prop_unsolved(city_nest$data[[1]])
+purrr::map(city_nest$data, prop_unsolved)
+
+unsolved_city <- city_nest %>% 
+  mutate(prop_unsolved = purrr::map(data, prop_unsolved)) %>% 
+  unnest() %>% 
+  rename(CI_low = conf.low, 
+         CI_high = conf.high) %>% 
+  knitr::kable()
+
+```
+
+
