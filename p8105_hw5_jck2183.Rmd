@@ -70,15 +70,32 @@ all_cases %>%
 city_nest <- nest(all_cases, unsolved:total)
 
 prop_unsolved(city_nest$data[[1]])
-purrr::map(city_nest$data, prop_unsolved)
+#purrr::map(city_nest$data, prop_unsolved)
 
 unsolved_city <- city_nest %>% 
   mutate(prop_unsolved = purrr::map(data, prop_unsolved)) %>% 
   unnest() %>% 
   rename(CI_low = conf.low, 
-         CI_high = conf.high) %>% 
-  knitr::kable()
+         CI_high = conf.high)
+
+
 
 ```
 
+- Create a plot that shows the estimates and CIs for each city – check out geom_errorbar for a way to add error bars based on the upper and lower limits. Organize cities according to the proportion of unsolved homicides.
+
+
+```{r}
+unsolved_city %>% 
+  mutate(city_state = fct_reorder(city_state, estimate)) %>% 
+  ggplot(aes(x = city_state, y = estimate)) + 
+  geom_point(color = "#A35E60") + 
+  geom_errorbar(aes(ymin = CI_low, ymax = CI_high)) + 
+  coord_flip() + 
+  labs(title = "Proportion of unsolved cases in 50 major US cities", 
+       y = "Proportion of unsolved cases", 
+       x = "City", 
+       caption = "Error bars represent 95% confidence interval") + 
+  theme_classic() 
+```
 
