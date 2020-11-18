@@ -98,9 +98,42 @@ Create a tidy dataframe containing data from all participants, including the sub
 - Start with a dataframe containing all file names; the list.files function will help.
 
 ```{r}
-file_names <- list.files("./data/", full.names = TRUE)
+path_df = 
+  tibble(
+    path = list.files("./data")
+  ) %>% 
+  mutate(
+    path = str_c("data/", path), 
+    data = map(.x = path, .f = read_csv))
+  
+study_df = path_df %>% pull(data)
+```
+- Tidy the result; manipulate file names to include control arm and subject ID, make sure weekly observations are “tidy”, and do any other tidying that’s necessary
 
-df <- file_names %>% 
-  map(read_csv) 
+```{r}
+for (i in 1:20) {
+  if (i < 11) {
+    study_df[[i]] <- study_df[[i]] %>% 
+    mutate(arm = "Control", 
+           subject_id = i)
+  } else if (i > 10) {
+    study_df[[i]] <- study_df[[i]] %>% 
+    mutate(arm = "Experimental", 
+             subject_id = i - 10)
+  }
+}
+
+
+```
+
+```{r}
+result_study_df =
+  bind_rows(study_df) %>% 
+  gather(key = week, value = obs, week_1:week_8) %>% 
+  arrange(week, subject_id) %>% 
+  separate(col = week, into = c("delete", "week")) %>% 
+  select(-delete)
+
+head(result_study_df)
 ```
 
