@@ -158,3 +158,112 @@ result_study_df %>%
         plot.title = element_text(size = 11))
 ```
 
+## Problem 3
+
+-When designing an experiment or analysis, a common question is whether it is likely that a true effect will be detected – put differently, whether a false null hypothesis will be rejected. The probability that a false null hypothesis is rejected is referred to as power, and it depends on several factors, including: the sample size; the effect size; and the error variance. In this problem, you will conduct a simulation to explore power in a one-sample t-test.
+
+- First set the following design elements:
+
+- Fix n=30
+- Fix σ=5
+- Set μ=0. Generate 5000 datasets from the model
+
+Repeat the above for μ={1,2,3,4,5,6}, and complete the following:
+
+
+```{r}
+sim_ttest <- function(n = 30, sigma = 5, mu) {
+  sim_data = 
+    tibble(
+    x = rnorm(n = 30, sd = 5, mean = mu)
+    ) 
+
+  sim_data %>% t.test() %>%
+    broom::tidy()
+  
+}
+
+
+sim_results = 
+  rerun(10, sim_ttest(mu = 0)) %>% 
+  bind_rows() %>% 
+  select(estimate, p.value)
+
+
+
+sim_results_df = 
+tibble(mu = c(0, 1, 2, 3, 4, 5, 6)) %>% 
+  mutate(
+    output_lists = map(.x = mu, ~rerun(5000, sim_ttest(mu = .x))),
+    estimate_dfs = map(output_lists, bind_rows)) %>% 
+  select(-output_lists) %>% 
+  unnest(estimate_dfs)
+
+
+
+```
+
+- Make a plot showing the proportion of times the null was rejected (the power of the test) on the y axis and the true value of μ on the x axis. Describe the association between effect size and power.
+```{r}
+sim_results_df %>% 
+  mutate(
+    reject = ifelse(p.value < '0.05', 1, 0)
+  ) %>% 
+  group_by(mu) %>% 
+  summarise(prop_reject = mean(reject)) %>% 
+  ggplot(aes(x = mu, y = prop_reject)) + 
+  geom_line(alpha = .5, color = "coral") + 
+  geom_point(alpha = .5) +
+  labs(
+    title = "The power of the test",
+    x = "True μ",
+    y = "Power"
+  )
+```
+We can tell from the plot that the effect size(x-axis) and the power of test (y-axis) are positively correlated when true μ <= 3. However,the effect size(x-axis) and the power of test (y-axis) became negatively correlated when true μ > 3.
+
+
+
+- Make a plot showing the average estimate of μ̂  on the y axis and the true value of μ on the x axis. Make a second plot (or overlay on the first) the average estimate of μ̂  only in samples for which the null was rejected on the y axis and the true value of μ on the x axis. Is the sample average of μ̂  across tests for which the null is rejected approximately equal to the true value of μ? Why or why not?
+
+
+```{r}
+Plot_A = 
+  sim_results_df %>% 
+  mutate(
+    reject = ifelse(p.value < '0.05', 1, 0)
+  ) %>% 
+  group_by(mu) %>% 
+  summarise(mean_mu = mean(estimate)) %>% 
+  ggplot(aes(x = mu, y = mean_mu)) +
+  geom_line(alpha = .5, color = "coral") +
+  geom_point() +
+  labs(
+    title = "Average estimate of μ hat",
+    x = "True μ",
+    y = "average estimate of μ hat"
+  )
+
+Plot_B = 
+  sim_results_df %>% 
+  mutate(
+    reject = ifelse(p.value < '0.05', 1, 0)
+  ) %>% 
+  filter(reject == 1) %>% 
+  group_by(mu) %>% 
+  summarise(mean_mu = mean(estimate)) %>% 
+  ggplot(aes(x = mu , y = mean_mu)) +
+  geom_line(alpha =.5, color = "turquoise") +
+  geom_point() +
+  labs(
+    title = "Average estimate of μ hat: Rejected H0",
+    x = "True μ ",
+    y = "Average of rejected μ hat"
+  )
+
+Plot_A + Plot_B
+
+```
+
+
+The above plot shows the average estimate of μ hat on the y axis and the true value of μ  on the x axis (left) and the average estimate of μ hat only in samples for which the null was rejected on the y axis and the true value of μ  on the x axis (right). We can tell from the plots that the average estimates of μ hat are not the same. Both graphs show positive correlation, however, the average estimate of μ hat in samples for which the null was rejected is larger and the graph is steeper. The sample average of μ hat across tests for rejected null isn’t approximately equal to the true value of μ. The reason may due to the increasing effect size.
